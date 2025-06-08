@@ -1,4 +1,4 @@
-module github.com/Yandex-Practicum/go-db-sql-final
+module github.com/WutHar/go-db-sql-final-v1
 
 go 1.21
 
