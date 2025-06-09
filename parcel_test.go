@@ -23,9 +23,11 @@ func getTestParcel() Parcel {
 }
 
 func TestAddGetDelete(t *testing.T) {
+
 	db, err := sql.Open("sqlite", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 	defer db.Close()
+
 	_, err = db.Exec(`CREATE TABLE parcel (
         number INTEGER PRIMARY KEY AUTOINCREMENT,
         client INTEGER,
@@ -34,27 +36,36 @@ func TestAddGetDelete(t *testing.T) {
         created_at TEXT
     )`)
 	require.NoError(t, err)
+
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
+
 	id, err := store.Add(parcel)
 	require.NoError(t, err)
 	require.NotZero(t, id)
+
 	p, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, parcel.Client, p.Client)
-	require.Equal(t, parcel.Status, p.Status)
-	require.Equal(t, parcel.Address, p.Address)
-	require.NotEmpty(t, p.CreatedAt)
+
+	// Сравнение всей структуры (игнорируем Number и CreatedAt)
+	expectedParcel := parcel
+	expectedParcel.Number = id
+	p.CreatedAt = expectedParcel.CreatedAt
+	require.Equal(t, expectedParcel, p)
+
 	err = store.Delete(id)
 	require.NoError(t, err)
+
 	_, err = store.Get(id)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func TestSetAddress(t *testing.T) {
+
 	db, err := sql.Open("sqlite", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 	defer db.Close()
+
 	_, err = db.Exec(`CREATE TABLE parcel (
         number INTEGER PRIMARY KEY AUTOINCREMENT,
         client INTEGER,
@@ -63,22 +74,33 @@ func TestSetAddress(t *testing.T) {
         created_at TEXT
     )`)
 	require.NoError(t, err)
+
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
+
 	id, err := store.Add(parcel)
 	require.NoError(t, err)
+
 	newAddress := "new test address"
 	err = store.SetAddress(id, newAddress)
 	require.NoError(t, err)
+
 	p, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, newAddress, p.Address)
+
+	expectedParcel := parcel
+	expectedParcel.Number = id
+	expectedParcel.Address = newAddress
+	p.CreatedAt = expectedParcel.CreatedAt
+	require.Equal(t, expectedParcel, p)
 }
 
 func TestSetStatus(t *testing.T) {
+
 	db, err := sql.Open("sqlite", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 	defer db.Close()
+
 	_, err = db.Exec(`CREATE TABLE parcel (
         number INTEGER PRIMARY KEY AUTOINCREMENT,
         client INTEGER,
@@ -87,21 +109,32 @@ func TestSetStatus(t *testing.T) {
         created_at TEXT
     )`)
 	require.NoError(t, err)
+
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
+
 	id, err := store.Add(parcel)
 	require.NoError(t, err)
+
 	err = store.SetStatus(id, ParcelStatusSent)
 	require.NoError(t, err)
+
 	p, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, ParcelStatusSent, p.Status)
+
+	expectedParcel := parcel
+	expectedParcel.Number = id
+	expectedParcel.Status = ParcelStatusSent
+	p.CreatedAt = expectedParcel.CreatedAt
+	require.Equal(t, expectedParcel, p)
 }
 
 func TestGetByClient(t *testing.T) {
+
 	db, err := sql.Open("sqlite", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 	defer db.Close()
+
 	_, err = db.Exec(`CREATE TABLE parcel (
         number INTEGER PRIMARY KEY AUTOINCREMENT,
         client INTEGER,
@@ -110,31 +143,29 @@ func TestGetByClient(t *testing.T) {
         created_at TEXT
     )`)
 	require.NoError(t, err)
+
 	store := NewParcelStore(db)
-	parcels := []Parcel{
-		getTestParcel(),
-		getTestParcel(),
-		getTestParcel(),
-	}
-	parcelMap := map[int]Parcel{}
 	client := randRange.Intn(10_000_000)
-	parcels[0].Client = client
-	parcels[1].Client = client
-	parcels[2].Client = client
-	for i := 0; i < len(parcels); i++ {
-		id, err := store.Add(parcels[i])
+	parcelMap := make(map[int]Parcel)
+
+	for i := 0; i < 3; i++ {
+		p := getTestParcel()
+		p.Client = client
+		id, err := store.Add(p)
 		require.NoError(t, err)
-		parcels[i].Number = id
-		parcelMap[id] = parcels[i]
+		p.Number = id
+		parcelMap[id] = p
 	}
+
 	storedParcels, err := store.GetByClient(client)
 	require.NoError(t, err)
 	require.Len(t, storedParcels, 3)
+
 	for _, parcel := range storedParcels {
 		expected, exists := parcelMap[parcel.Number]
 		require.True(t, exists)
-		require.Equal(t, expected.Client, parcel.Client)
-		require.Equal(t, expected.Status, parcel.Status)
-		require.Equal(t, expected.Address, parcel.Address)
+
+		parcel.CreatedAt = expected.CreatedAt
+		require.Equal(t, expected, parcel)
 	}
 }
